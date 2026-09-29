@@ -1,0 +1,6 @@
+"0","#Tibble"
+"0","study2_final %>%"
+"0","  slice_head(n = 10) %>%"
+"0","  kable("
+"0","    caption = ""First 10 Observations of the Study 2 Analytic Dataset"""
+"0","  )"

@@ -1,0 +1,8 @@
+"0",""
+"0","#T-Test for Confidence Interval"
+"0","tt_a <- study1 %$%"
+"0","  t.test(outdoor_difference, conf.level = 0.90)"
+"0",""
+"0","tidy(tt_a) %>%"
+"0","  select(estimate, conf.low, conf.high) %>%"
+"0","  kable(digits = 1)"

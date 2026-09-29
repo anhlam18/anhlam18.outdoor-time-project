@@ -1,0 +1,4 @@
+"0",""
+"0","study1 %>%"
+"0","  tabyl(RIDSTATR) %>%"
+"0","  kable()"

@@ -1,0 +1,589 @@
+---
+title: "Sun Exposure and Sun Protection Behaviors In Adults Ages 20-59"
+author: "Phuong Anh Lam (Anh Lam)"
+date: "09-27-2026"
+format:
+  html:
+    toc: true
+    number-sections: true
+    date-format: iso
+execute:
+  warning: false
+  message: false
+---
+
+# **Setup and Data Ingest**
+
+```{r}
+
+#Install necessary packages
+
+knitr::opts_chunk$set(comment = NA)
+#install.packages(c("tidyverse","janitor","knitr","magrittr","broom","naniar","patchwork"))
+#install.packages("haven")
+#install.packages("nhanesA")
+library(nhanesA)
+library(haven)
+library(janitor)
+library(knitr) 
+library(magrittr)
+library(broom) 
+library(naniar)
+library(patchwork)
+library(tidyverse)
+
+
+#Download raw datasets from P_DEMO, P_DEQ, and P_OCQ
+
+#getwd()
+#file.exists("data/P_DEMO.xpt")
+demo_raw <- read_xpt("data/P_DEMO.xpt")
+deq_raw <- read_xpt("data/P_DEQ.xpt")
+ocq_raw <- read_xpt("data/P_OCQ.xpt")
+
+#Select relevant variables in datasets
+demo <- demo_raw %>%
+  select(SEQN, RIDSTATR, RIDAGEYR, RIAGENDR, RIDRETH3, DMDEDUC2)
+
+deq <- deq_raw %>%
+  select(SEQN,DED120, DED125, DEQ034D)
+
+#Merge and define necessary data
+sun_raw <- demo %>%
+  left_join(deq, by = "SEQN")
+
+sun <- sun_raw %>%
+  filter(
+    RIDSTATR == 2,
+    RIDAGEYR >= 20,
+    RIDAGEYR <= 59
+  )
+
+
+```
+
+# **Cleaning the Data**
+
+```{r}
+# Data Cleaning.
+
+#Deduct anything that corresponds to Refused to answer (7 or 7777), Don't know (9 or 9999), and Does not work for DED120 (3333)
+
+sun_clean <- sun %>%
+  mutate(
+    DMDEDUC2 = replace(
+      DMDEDUC2,
+      DMDEDUC2 %in% c(7, 9),
+      NA
+    ),
+    
+    DEQ034D = replace(
+      DEQ034D,
+      DEQ034D %in% c(7, 9),
+      NA
+    ),
+    
+    DED120 = replace(
+      DED120,
+      DED120 %in% c(3333, 7777, 9999),
+      NA
+    ),
+    
+    DED125 = replace(
+      DED125,
+      DED125 %in% c(3333, 7777, 9999),
+      NA
+    )
+  )
+
+#Create useful categories
+
+sun_clean <- sun_clean %>%
+  mutate(
+    gender = factor(
+      RIAGENDR,
+      levels = c(1, 2),
+      labels = c("Male", "Female")
+    ),
+    
+    race_ethnicity = factor(
+      RIDRETH3,
+      levels = c(1, 2, 3, 4, 6, 7),
+      labels = c(
+        "Mexican American",
+        "Other Hispanic",
+        "Non-Hispanic White",
+        "Non-Hispanic Black",
+        "Non-Hispanic Asian",
+        "Other Race - Including Multi-Racial"
+      )
+    ),
+    
+    education = case_when(
+      DMDEDUC2 %in% c(1, 2) ~ "Less than high school",
+      DMDEDUC2 == 3 ~ "High school or GED",
+      DMDEDUC2 == 4 ~ "Some college or AA",
+      DMDEDUC2 == 5 ~ "College graduate or above",
+      TRUE ~ NA_character_
+    ),
+    
+    education = factor(
+      education,
+      levels = c(
+        "Less than high school",
+        "High school or GED",
+        "Some college or AA",
+        "College graduate or above"
+      )
+    ),
+    
+    sunscreen = factor(
+      DEQ034D,
+      levels = c(1, 2, 3, 4, 5),
+      labels = c(
+        "Always",
+        "Most of the time",
+        "Sometimes",
+        "Rarely",
+        "Never"
+      )
+    ),
+    
+    regular_sunscreen = case_when(
+      DEQ034D %in% c(1, 2) ~ "Regular",
+      DEQ034D %in% c(3, 4, 5) ~ "Not Regular",
+      TRUE ~ NA_character_
+    ),
+    
+    regular_sunscreen = factor(
+      regular_sunscreen,
+      levels = c("Not Regular", "Regular")
+    )
+  )
+
+sun_clean <- sun_clean %>%
+  rename(
+    outdoor_workday = DED120,
+    outdoor_nonworkday = DED125
+  )
+
+#Study 1 Final Tibble
+
+#Assign only necessary catorgories to Study1 dataset, drop NA data and any unused categories
+
+study1 <- sun_clean %>%
+  select(
+    SEQN,
+    RIDSTATR,
+    RIDAGEYR,
+    outdoor_workday,
+    outdoor_nonworkday,
+    gender,
+    education,
+    sunscreen,
+    regular_sunscreen
+  ) %>%
+  drop_na() %>%
+  droplevels()
+
+```
+
+# **Codebook and Data Description**
+
+```{r}
+##Code book
+
+codebook <- tibble(
+  Variable = c(
+    "SEQN",
+    "outdoor_workday",
+    "outdoor_nonworkday",
+    "gender",
+    "education",
+    "sunscreen",
+    "regular_sunscreen"
+  ),
+  
+  Description = c(
+    "NHANES participant identifier",
+    "Minutes outdoors from 9am to 5pm on work or school days",
+    "Minutes outdoors from 9am to 5pm on nonwork or nonschool days",
+    "Gender",
+    "Education/degree status",
+    "Frequency of sunscreen use when outside on a very sunny day for more than 1hour",
+    "Regular sunscreen use, from always, most of the time to rarely and never"
+  ),
+  
+  Type = c(
+    "Identifier",
+    "Quant",
+    "Quant",
+    "Binary",
+    "Cat",
+    "Cat",
+    "Binary"
+    
+  ),
+  
+  'Original Variable' = c(
+    "SEQN",
+    "DED120",
+    "DED125",
+    "RIAGENDR",
+    "DMDEDUC2",
+    "DEQ034D",
+    "DEQ034D"
+    
+  )
+)
+  
+codebook %>%
+  knitr::kable()
+  
+```
+
+```{r}
+#Analysis Table
+study1
+```
+
+```{r}
+#Data Summary
+study1 %>%
+  summarize(
+    n = n(),
+      age_mean = mean(RIDAGEYR),
+      age_sd = sd(RIDAGEYR),
+      age_min = min(RIDAGEYR),
+      age_max = max(RIDAGEYR),
+      workday_mean = mean(outdoor_workday),
+      workday_sd = sd(outdoor_workday),
+      workday_median = median(outdoor_workday),
+      workday_min = min(outdoor_workday),
+      workday_max = max(outdoor_workday),
+      nonworkday_mean = mean(outdoor_nonworkday),
+      nonworkday_sd = sd(outdoor_nonworkday),
+      nonworkday_median = median(outdoor_nonworkday),
+      nonworkday_min = min(outdoor_nonworkday),
+      nonworkday_max = max(outdoor_nonworkday)
+  ) %>%
+  
+  kable(digits = 1)
+
+
+#Turn data into percentages for easy intepretation  
+study1 %>%
+  tabyl(gender) %>%
+  adorn_pct_formatting(digits = 1) %>%
+  kable()
+
+study1 %>%
+  tabyl(education) %>%
+  adorn_pct_formatting(digits = 1) %>%
+  kable()
+
+study1 %>%
+  tabyl(sunscreen) %>%
+  adorn_pct_formatting(digits = 1) %>%
+  kable()
+
+study1 %>%
+  tabyl(regular_sunscreen) %>%
+  adorn_pct_formatting(digits = 1) %>%
+  kable()
+
+study1 %>%
+  tabyl(RIDSTATR) %>%
+  kable()
+
+
+
+```
+
+# **Data Analysis A**
+
+## The Question
+
+**What does time spent outdoors between 9am and 5pm looks like on work or school days versus on non-work/ non-school days for adult ages 20-59?**
+
+This can be done by comparing the means of the time spend by the two groups. But two plots side-by-side woud better demonstrate how the time spent differs at each time interval.
+
+## Describing The Data 
+
+The variables we're looking at are outdoor_workday and outdoor_nonworkday, which correspond to the time spent outdoors on work/ school days and the the time spent outdoors on nonwork/ school days. We want to see whether or not people spend more time outdoors when they don't have school or work responsibilities.
+
+## Main Analysis
+
+```{r}
+
+#Main Analysis: Histogram plots for time spent outdoors for the two groups.
+
+#Plots
+p1 <- ggplot(study1, aes(x = outdoor_workday)) +
+  geom_histogram(bins = 30) +
+  labs(
+    title = "Work/School Days",
+    x = "Time spent outdoors (minutes)",
+    y = "Count"
+  )
+
+p2 <- ggplot(study1, aes(x = outdoor_nonworkday)) +
+  geom_histogram(bins = 30) +
+  labs(
+    title = "Non-Work/Non-School Days",
+    x = "Time spent outdoors (minutes)",
+    y = "Count"
+  )
+
+p1 + p2
+
+#Summary of mean and standard deviation of the two variables
+
+study1 %>%
+  summarize(
+    workday_mean = mean(outdoor_workday),
+    workday_sd = sd(outdoor_workday),
+    nonworkday_mean = mean(outdoor_nonworkday),
+    nonworkday_sd = sd(outdoor_nonworkday)
+  ) %>%
+  kable(digits = 1)
+
+study1 <- study1 %>%
+  mutate(
+    outdoor_difference = outdoor_nonworkday - outdoor_workday
+  )
+
+study1 %>%
+  summarize(
+    mean_difference = mean(outdoor_difference),
+    sd_difference = sd(outdoor_difference)
+  ) %>%
+  kable(digits = 1)
+
+#T-Test for Confidence Interval
+tt_a <- study1 %$%
+  t.test(outdoor_difference, conf.level = 0.90)
+
+tidy(tt_a) %>%
+  select(estimate, conf.low, conf.high) %>%
+  kable(digits = 1)
+
+```
+
+## Conclusion
+
+More people tend to spend less time outdoors when they have school or work. A lot of people spend as much as 2 hours outdoors when they're not working. On avereage, this comes close to 2.5 hours. The sample means tell us that the difference in time is about 34 minutes. Not many people spend more than 4 hours outside, regardless of whether they have work or school responsbilities. The t-test shows that the confidence interval in the means falls within 30.1 and 37 minute.
+
+# **Data Analysis B**
+
+## The Question
+
+**What does time spent outdoors between 9am and 5pm looks like on work or school days for female versus male participants?**
+
+This can be done by comparing the means of the time spend by the two groups. And two plots woud better demonstrate how the time spent differs for the two groups.
+
+## Describing The Data 
+
+The variables we're looking at are outdoor_workday (time spent outdoors on work/ school days) for female and for male. We want to see if men spend more time outdoors than women do when they have school or work responsibilities.
+
+## Main Analysis
+
+```{r}
+#Analysis B
+
+#Main Analysis: Histogram plots for time spent outdoors for the two groups.
+
+#Plots 
+study1 %>%
+  ggplot(aes(x = outdoor_workday)) +
+  geom_histogram(bins = 30) +
+  facet_grid(gender ~ .) +
+  labs(
+    title = "Outdoor Time on Work/School Days by Gender",
+    x = "Time spent outdoors (minutes)",
+    y = "Count"
+  )
+
+#Summary of the means and standard deviations
+study1 %>%
+  group_by(gender) %>%
+  summarize(
+    n = n(),
+    mean = mean(outdoor_workday),
+    sd = sd(outdoor_workday),
+    median = median(outdoor_workday),
+    min = min(outdoor_workday),
+    max = max(outdoor_workday)
+  ) %>%
+  kable(digits = 1)
+
+#T-Test for Confidence Interval
+tt_b <- t.test(
+  outdoor_workday ~ gender,
+  data = study1,
+  conf.level = 0.90
+)
+
+tt_b
+
+tidy(tt_b) %>%
+  select(estimate1, estimate2, estimate, conf.low, conf.high) %>%
+  kable(digits = 1)
+
+```
+
+## Conclusion
+
+Conclusion: The results show that men typically spend more time outdoors than women do on work/school days. There's a considerable amount of men who spend up to 8 hours (around 480 minutes) outdoors. On average, men spend 162 minutes (estimate1) outdoors while women spend around 75 minutes (estimate2). The difference on time spent by the two groups is 87 minutes (estimate). The 90% confidence interval for the population mean is from 80.6 to 93.4 minutes.
+
+# **Data Analysis D**
+
+## The Question
+
+**How does regular sunscreen use differ between male and female adults ages 20 to 59?**
+
+This can be done by comparing the regular sunscreen use between the two genders, using the variable regular_sunscreen in each category in gender.
+
+## Describing The Data 
+
+The variables we're looking at are regular_sunscreen (regular sunscreen use) between two gender groups (female vs male). Then, we look at the Risk difference to asnwer magnitude in the difference between the two groups. Then, Relative risk will tell us the ratio between the differnce, and Odss ratio result will tell us about the odds of regular use of sunscreen between the two groups.
+
+## Main Analysis
+
+```{r}
+#Analysis D
+
+#Main Analysis: Stacked bar plots will show the difference in regular sunscreen use in female and male participants. The percentage of regular sunscreen use is calculated for the two groups.
+
+study1 %>%
+  tabyl(gender, regular_sunscreen)
+
+study1 %>%
+  tabyl(gender, regular_sunscreen) %>%
+  adorn_percentages("row") %>%
+  adorn_pct_formatting(digits = 1)
+
+#Plot
+ggplot(
+  study1,
+  aes(x = gender, fill = regular_sunscreen)
+) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Regular Sunscreen Use by Gender",
+    x = "Gender",
+    y = "Proportion",
+    fill = "Sunscreen Use"
+  )
+
+#Calculations of Risk difference, Relative risk, and Odds ratio
+
+#Risk difference
+female_risk <- 717 / 2475
+male_risk <- 267 / 2346
+
+risk_difference <- female_risk - male_risk
+
+risk_difference
+
+#Relative risk
+relative_risk <- female_risk / male_risk
+
+relative_risk
+
+#Odds ratio
+female_odds <- 717 / 1758
+male_odds <- 267 / 2079
+
+odds_ratio <- female_odds / male_odds
+
+odds_ratio
+
+tibble(
+  Measure = c(
+    "Risk Difference",
+    "Relative Risk",
+    "Odds Ratio"
+  ),
+  Estimate = c(
+    risk_difference,
+    relative_risk,
+    odds_ratio
+  )
+) %>%
+  kable(digits = 2)
+
+```
+
+## Conclusion
+
+The results show that 29% of female and 11.4% of male participants reported having regular sunscreen use. The risk difference tells us that regular sunscreen use is 18% higer in women than it is is men. The relative risk tells us that the proportion of having regular sunscreen use is 2.55 higher for females than it is for males. The odds of using sunscreen regularly is 3.18 times for women.
+
+# **Data Analysis C**
+
+## The Question 
+
+**How does the time spent outdoors on work/school days differ across education levels among adutls ages 20-59?**
+
+This can be done by comparing outdoor_workday across the 4 education levels: less than highschool, high school or GED, some college or AA, and college graduate or above.
+
+## Describing The Data 
+
+The variables we're looking at are outdoor_workday (minutes spent outdoors from 9am to 5pm) and education. We compare the means in outdoor time across these groups. The linear model is then used to estiamte differences in the means of outdoor time, using less than high school as the reference group.
+
+## Main Analysis
+
+```{r}
+#Analysis C
+
+#Main Analysis: Histograms are used to compare the outdoor time spent across 4 education level. Then, the linear model will calculate the 90% condifence interval for the difference in the mean of outdoor time across 4 groups.
+
+study1 %>%
+  ggplot(aes(x = outdoor_workday)) +
+  geom_histogram(bins = 30) +
+  facet_grid(
+    education ~ .,
+    labeller = label_wrap_gen(width = 25),
+    switch = "y"
+  ) +
+  labs(
+    title = "Outdoor Time on Work/School Days by Education Level",
+    x = "Time spent outdoors (minutes)",
+    y = "Count"
+  ) +
+  theme(
+    strip.placement = "outside",
+    strip.text.y.left = element_text(angle = 0)
+  )
+
+#Summary of stats 
+study1 %>%
+  group_by(education) %>%
+  summarize(
+    n = n(),
+    mean = mean(outdoor_workday),
+    sd = sd(outdoor_workday),
+    median = median(outdoor_workday),
+    min = min(outdoor_workday),
+    max = max(outdoor_workday)
+  ) %>%
+  kable(digits = 1)
+
+#Linear model comparing mean outdoor time across education levels
+education_model <- lm(outdoor_workday ~ education, data = study1)
+
+tidy(education_model, conf.int = TRUE, conf.level = 0.90) %>%
+  select(term, estimate, conf.low, conf.high) %>%
+  kable(digits = 1)
+
+```
+
+## Conclusion
+
+The distribution is skewed to the right for all the groups. Those with high school degrees or less spend as much as 8 hours outdoors during work/school days. Mean time spent outdoors for participants with less than a high school degree is highest (162 minutes), while it is lowest for those with college degree or above (65 minutes). The linear model shows lower mean outdoor time for the other education groups compared with the group with less than a high school degree. Higher education levels are associated with lower time spent outdoors during work/school days.
+
+# Final Section
+
+```{r}
+xfun::session_info()
+```

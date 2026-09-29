@@ -1,0 +1,7 @@
+"0",""
+"0",""
+"0","#Turn data into percentages for easy intepretation  "
+"0","study1 %>%"
+"0","  tabyl(gender) %>%"
+"0","  adorn_pct_formatting(digits = 1) %>%"
+"0","  kable()"

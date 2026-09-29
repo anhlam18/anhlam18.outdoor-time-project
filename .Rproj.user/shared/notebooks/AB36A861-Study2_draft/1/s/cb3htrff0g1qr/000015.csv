@@ -1,0 +1,8 @@
+"0","#Plot"
+"0","ggplot(study2_train, aes(x = outdoor_workday)) +"
+"0","  geom_histogram(bins = 30) +"
+"0","  labs("
+"0","    title = ""Distribution of Outdoor Time in Training Data"","
+"0","    x = ""Time spent outdoors on work/school days (minutes)"","
+"0","    y = ""Count"""
+"0","  )"

@@ -1,0 +1,16 @@
+"0","study2 <- sun_clean %>%
+  select(
+    SEQN,
+    outdoor_workday,
+    education,
+    RIDAGEYR,
+    gender,
+    race_ethnicity,
+    regular_sunscreen
+  )
+"
+"1","[1m[33mError[39m in `select()`:[22m
+[33m![39m Can't select columns that don't exist.
+[31m✖[39m Column `race_ethnicity` doesn't exist.
+[90mRun `]8;;x-r-run:rlang::last_trace()rlang::last_trace()]8;;` to see where the error occurred.[39m
+"

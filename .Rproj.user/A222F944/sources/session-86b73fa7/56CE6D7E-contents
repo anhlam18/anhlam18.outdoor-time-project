@@ -1,0 +1,333 @@
+---
+title: "Sun exposure and sun protection behaviors in adults"
+author: "Anh Lam"
+format: html
+---
+
+```{r}
+#Install all libraries
+library(janitor)
+library(knitr)
+library(magrittr)
+library(broom)
+library(naniar)
+library(patchwork)
+library(tidyverse)
+
+theme_set(theme_bw())
+
+```
+
+```{r}
+
+###Data Inspection###
+
+demo_raw <- read_xpt("data/P_DEMO.xpt")
+deq_raw <- read_xpt("data/P_DEQ.xpt")
+ocq_raw <- read_xpt("data/P_OCQ.xpt")
+
+#Load original datasets from NHANES
+
+dim(demo_raw)
+dim(deq_raw)
+dim(ocq_raw)
+
+#Select target variables for eah dataset
+
+demo <- demo_raw %>%
+  select(SEQN, RIDSTATR, RIDAGEYR, RIAGENDR, RIDRETH3, DMDEDUC2)
+
+deq <- deq_raw %>%
+  select(SEQN, DED120, DED125, DEQ034A, DEQ034C, DEQ034D)
+         
+ocq <- ocq_raw %>%
+  select(SEQN, OCD150, OCQ180, OCQ670 )
+
+#Quick look at each modified dataset
+
+glimpse(ocq)
+
+#Merge tibbles for deq and ocq
+sun_raw <- demo %>%
+  left_join(deq, by = "SEQN") %>%
+  left_join(ocq, by = "SEQN")
+
+#Double check to see merge is good
+dim(sun_raw)
+glimpse(sun_raw)
+
+#Filter out interview/exam status and age
+
+sun <- sun_raw %>%
+  filter(RIDSTATR == 2,
+         RIDAGEYR >= 20,
+         RIDAGEYR <= 59)
+
+#Check for dimension and missing variables or odd observations
+dim(sun)
+summary(sun)
+
+#Create tables to see all data
+
+sun %>%
+  tabyl(RIAGENDR)
+
+sun %>%
+  tabyl(RIDRETH3)
+
+sun %>%
+  tabyl(DMDEDUC2)
+
+sun %>%
+  tabyl(DEQ034A)
+
+sun %>%
+  tabyl(DEQ034C)
+
+sun %>%
+  tabyl(DEQ034D)
+
+sun %>%
+  tabyl(OCQ670)
+
+#Examine specific variables
+
+summary(sun$DED120)
+summary(sun$DED125)
+
+length(unique(sun$DED120))
+length(unique(sun$DED125))
+```
+
+```{r}
+#Data Cleaning
+
+#Assign NA to responses that are unknown/don't know or refused to asnwer
+sun_clean <- sun %>%
+  mutate(
+   #Education
+    DMDEDUC2 = replace(
+      DMDEDUC2, DMDEDUC2 %in% c(7, 9), NA),
+   #Long-sleeve
+    DEQ034C = replace(
+      DEQ034C, DEQ034C %in% c(7, 9), NA
+    ),
+   #Suncreen use
+    DEQ034D = replace(
+      DEQ034D, DEQ034D %in% c(7, 9), NA
+    ),
+   #Type of work done last week
+    OCD150 = replace(
+      OCD150, OCD150 %in% c(7, 9), NA
+    ),
+   #Work schedule
+    OCQ670 = replace(
+      OCQ670, OCQ670 %in% c(7,9), NA
+    ),
+   #Hours worked last week
+    OCQ180 = replace(
+      OCQ180, OCQ180 %in% c(77777, 99999), NA
+    ),
+   #Minutes spent outdoor on working days
+    DED120 = replace(
+      DED120, DED120 %in% c(3333, 7777, 9999), NA
+    ),
+   #Minutes spent outdoors on non-working days
+    DED125 = replace(
+      DED125, DED125 %in% c(3333, 7777, 9999), NA
+    )
+  )
+
+#Label variables    
+
+#Sex
+sun_clean <- sun_clean %>%
+  mutate(
+    sex = factor(
+      RIAGENDR, levels = c(1, 2), labels = c("Male", "Female")
+    )
+  )
+
+#Race/Ethicity
+sun_clean <- sun_clean %>%
+  mutate(
+    race_ethnicity = factor(
+      RIDRETH3, levels = c(1, 2, 3, 4, 6, 7), 
+      labels = c(
+        "Mexican American",
+        "Other Hispanic",
+        "Non-Hispanic White",
+        "Non-Hispanic Black",
+        "Non-Hispanic Asian",
+        "Other Race - Including Multi-Racial")
+    )
+  )
+
+#Education
+sun_clean <- sun_clean %>%
+  mutate(
+    education = case_when(
+      DMDEDUC2 %in% c(1, 2) ~ "Less than high school",
+      DMDEDUC2 %in% c(3) ~ "High school or GED",
+      DMDEDUC2 %in% c(4) ~ "Some college or AA",
+      DMDEDUC2 %in% c(5) ~ "College graduate or above",
+      TRUE ~ NA_character_
+    ),
+    
+    education = factor(
+      education, levels = c(
+        "Less than high school",
+        "High school or GED",
+        "Some college or AA",
+        "College graduate or above"
+      )
+    )
+  )
+
+#Suncreen Use
+sun_clean <- sun_clean %>%
+  mutate(
+    sunscreen = factor(
+      DEQ034D,
+      levels = c(1, 2, 3, 4, 5),
+      labels = c(
+        "Always",
+        "Most of the time",
+        "Sometimes",
+        "Rarely",
+        "Never"
+      )
+    )
+  )
+
+sun_clean <- sun_clean %>%
+  mutate(
+    regular_sunscreen = case_when(
+      DEQ034D %in% c(1, 2) ~ "Regular",
+      DEQ034D %in% c(3, 4, 5) ~ "Not Regular",
+      TRUE ~ NA_character_
+    ),
+    
+    regular_sunscreen = factor(
+      regular_sunscreen,
+      levels = c("Not Regular", "Regular")
+    )
+  )
+
+#Work schedule
+    
+sun_clean <- sun_clean %>%
+  mutate(
+    work_schedule = factor(
+      OCQ670,
+      levels = c(1, 2, 3, 5),
+      labels = c(
+        "Traditional day",
+        "Evening/night",
+        "Early morning",
+        "Variable"
+      )
+    )
+  )
+
+#Long sleeve use
+sun_clean <- sun_clean %>%
+  mutate(
+    long_sleeves = factor(
+      DEQ034C,
+      levels = c(1, 2, 3, 4, 5),
+      labels = c(
+        "Always",
+        "Most of the time",
+        "Sometimes",
+        "Rarely",
+        "Never"
+      )
+    )
+  )
+
+#Assign variable codes to actual names
+sun_clean <- sun_clean %>%
+  mutate(
+    outdoor_workday = DED120,
+    outdoor_nonworkday = DED125,
+    age = RIDAGEYR,
+    hours_worked = OCQ180
+  )
+
+#Check final version before analysis
+
+summary(sun_clean$outdoor_workday)
+summary(sun_clean$outdoor_nonworkday)
+
+n_distinct(sun_clean$outdoor_workday, na.rm = TRUE)
+n_distinct(sun_clean$outdoor_nonworkday, na.rm = TRUE)
+
+sun_clean %>%
+  tabyl(sex)
+
+sun_clean %>%
+  tabyl(education)
+
+sun_clean %>%
+  tabyl(race_ethnicity)
+
+sun_clean %>%
+  tabyl(sunscreen)
+
+sun_clean %>%
+  tabyl(regular_sunscreen)
+
+sun_clean %>%
+  tabyl(work_schedule)
+
+sun_clean %>%
+  tabyl(long_sleeves)
+```
+
+```{r}
+
+#Study 1
+
+#Create clean dataset for Study 1
+study1 <- sun_clean %>%
+  select(
+    SEQN,
+    outdoor_workday,
+    outdoor_nonworkday,
+    sex,
+    education,
+    sunscreen,
+    regular_sunscreen
+  ) %>%
+  drop_na()
+
+view(study1)
+
+
+#Pre-Analysis A
+study1 %>% 
+  summarize(
+    n = n(),
+    workday_mean = mean(outdoor_workday),
+    workday_sd = sd(outdoor_workday),
+    nonworkday_mean = mean(outdoor_nonworkday),
+    nonworkday_sd = sd(outdoor_nonworkday)
+  )
+
+#Pre-Analysis B
+study1 %>%
+  count(sex)
+
+#Pre-Analysis D
+study1 %>% 
+  tabyl(sex, regular_sunscreen)
+
+#Pre-Analysis E
+study1 %>% 
+  tabyl(education, sunscreen)
+```
+
+```{r}
+
+```

@@ -1,0 +1,283 @@
+---
+title: "Outdoor Time and Sun Protection Dashboard"
+author: "Anh Lam"
+format:
+  dashboard:
+    orientation: rows
+    scrolling: true
+engine: knitr
+---
+
+```{r}
+#| include: false
+
+library(tidyverse)
+library(haven)
+library(knitr)
+library(ggplot2)
+
+demo_raw <- read_xpt("data/P_DEMO.xpt")
+deq_raw  <- read_xpt("data/P_DEQ.xpt")
+
+dashboard_data <- demo_raw %>%
+  select(SEQN, RIDSTATR, RIDAGEYR, RIAGENDR, RIDRETH3, DMDEDUC2) %>%
+  left_join(
+    deq_raw %>% select(SEQN, DED120, DED125, DEQ034D),
+    by = "SEQN"
+  ) %>%
+  filter(
+    RIDSTATR == 2,
+    RIDAGEYR >= 20,
+    RIDAGEYR <= 59
+  ) %>%
+  mutate(
+    DED120 = replace(DED120, DED120 %in% c(3333, 7777, 9999), NA),
+    DMDEDUC2 = replace(DMDEDUC2, DMDEDUC2 %in% c(7, 9), NA),
+    DEQ034D = replace(DEQ034D, DEQ034D %in% c(7, 9), NA),
+
+    outdoor_workday = DED120,
+
+    gender = factor(
+      RIAGENDR, 
+      levels = c(1,2),
+      labels = c("Male", "Female")
+    ),
+    
+    education = case_when(
+      DMDEDUC2 %in% c(1, 2) ~ "Less than high school",
+      DMDEDUC2 == 3 ~ "High school or GED",
+      DMDEDUC2 == 4 ~ "Some college or AA",
+      DMDEDUC2 == 5 ~ "College graduate or above",
+      TRUE ~ NA_character_
+    ),
+    
+    education = factor(
+      education,
+      levels = c(
+        "Less than high school",
+        "High school or GED",
+        "Some college or AA",
+        "College graduate or above" 
+      )
+    ),
+
+    regular_sunscreen = case_when(
+      DEQ034D %in% c(1, 2) ~ "Regular",
+      DEQ034D %in% c(3, 4, 5) ~ "Not Regular",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(
+    !is.na(outdoor_workday),
+    !is.na(education)
+  )
+
+regular_pct <- dashboard_data %>%
+  filter(!is.na(regular_sunscreen)) %>%
+  summarize(
+    pct = mean(regular_sunscreen == "Regular") * 100
+  ) %>%
+  pull(pct)
+
+```
+
+# Overview
+
+## Row 
+
+<p style="font-size: 40px;">
+
+This dashboard explores outdoor time and sun protection behaviors among adults ages 20–59 using NHANES data.
+
+</p>
+
+## Row {height="20%"}
+
+### Participants
+
+```{r}
+#| content: valuebox
+
+list(
+  title = "Participants",
+  value = "4,867",
+  subtitle = "Adults ages 20–59",
+  icon = "people",
+  color = "AFC8D6"
+)
+```
+
+### Median Outdoor Time
+
+```{r}
+#| content: valuebox
+
+list(
+  title = "Median Outdoor Time",
+  value = "60 min",
+  subtitle = "On a work or school day",
+  icon = "clock"
+)
+```
+
+
+### Regular Sunscreen Use
+
+
+```{r}
+#| content: valuebox
+
+list(
+  title = "Regular Sunscreen Users",
+  value = paste0(round(regular_pct, 1), "%"),
+  subtitle = "Use sunscreen always or most of the time",
+  icon = "sun"
+)
+```
+
+## Row {height="55%"}
+
+### Outdoor Time by Education
+
+```{r}
+#| echo: false
+#| fig-height: 3.5
+#| fig-width: 8
+
+ggplot(
+  dashboard_data,
+  aes(x = education, y = outdoor_workday)
+) +
+  geom_boxplot() +
+  coord_flip() +
+  labs(
+    title = "Outdoor Time by Education Level",
+    x = NULL,
+    y = "Outdoor time (minutes)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 13),
+    axis.text = element_text(size = 9),
+    axis.title = element_text(size = 10)
+  )
+```
+
+# Sunscreen Use
+
+## Row {heigh="60%"}
+
+### Regular Sunscreen Use by Gender
+
+```{r}
+#| echo: false
+#| fig-height: 3.5
+#| fig-width: 5.5
+
+sunscreen_gender <- dashboard_data %>%
+  filter(
+    !is.na(gender),
+    !is.na(regular_sunscreen)
+  ) %>%
+  count(gender, regular_sunscreen) %>%
+  group_by(gender) %>%
+  mutate(percent = n / sum(n) * 100) %>%
+  ungroup()
+
+ggplot(
+  sunscreen_gender,
+  aes(
+    x = gender,
+    y = percent,
+    fill = regular_sunscreen
+  )
+) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Regular Sunscreen Use by Gender",
+    x = NULL,
+    y = "Percent",
+    fill = "Sunscreen Use"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 13),
+    axis.text = element_text(size = 9),
+    axis.title = element_text(size = 10),
+    legend.title = element_text(size = 9),
+    legend.text = element_text(size = 9)
+  )
+```
+
+### Sunscreen Use Summary
+
+```{r}
+#| echo: false
+
+sunscreen_gender %>%
+  filter(regular_sunscreen == "Regular") %>%
+  select(gender, percent) %>%
+  mutate(
+    percent = paste0(round(percent, 1), "%")
+  ) %>%
+  rename(
+    Gender = gender,
+    `Regular Sunscreen Use` = percent
+  ) %>%
+  kable()
+```
+
+# Predicting
+
+## Row {height="45%"}
+
+### Model Performance
+
+```{r}
+#| echo: false
+
+model_performance <- tibble(
+  Model = c("Big Model", "Small Model"),
+  RMSPE = c(157.152, 165.532),
+  MAE = c(100.461, 104.731),
+  `Validated R²` = c(0.138, 0.046)
+)
+
+model_performance %>%
+  knitr::kable(
+    digits = 2,
+    caption = "Test Data Performance"
+  )
+```
+
+### Key Finding
+
+The Big Model had lower prediction error and a higher $R^2$ than the Smaller Model. However, both models had significant prediction errors, which suggests that education and the demographic and sunscreen variables explain only a limited amount of variation in outdoor time.
+
+# About the Data
+
+## Row {height="50%"}
+
+### Data
+
+This dashboard uses data from the National Health and Nutrition Examination Survey (NHANES). The analysis focuses on adults ages 20–59 who completed the examination.
+
+The dashboard examines outdoor time on work or school days, education level, gender, and regular sunscreen use.
+
+### Variables
+
+**Outdoor Time:** Minutes spent outdoors on a typical work or school day.
+
+**Education:** Less than high school, High school/GED, Some college/AA, or College graduate or above.
+
+**Gender:** Male or Female.
+
+**Regular Sunscreen Use:** Participants who reported using sunscreen always or most of the time were classified as regular sunscreen users.
+
+<style>
+.navbar-title {
+  font-size: 28px !important;
+}
+</style>
+
+

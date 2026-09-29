@@ -1,0 +1,675 @@
+---
+title: "How well does education level predict the the time spent outdoors on work/school days among adults ages 20-59?"
+author: "Phuong Anh Lam (Anh Lam)"
+date: "09-28-2026"
+format:
+  html:
+    toc: true
+    number-sections: true
+    date-format: iso
+execute:
+  warning: false
+  message: false
+---
+
+# Setup and Data Ingest
+
+```{r}
+
+library(tidyverse)
+library(haven)
+library(janitor)
+library(mice)
+library(broom)
+library(knitr)
+library(patchwork)
+library(naniar)
+library(magrittr)
+
+# Download/read raw datasets
+demo_raw <- read_xpt("data/P_DEMO.xpt")
+deq_raw  <- read_xpt("data/P_DEQ.xpt")
+
+# Select relevant variables
+demo <- demo_raw %>%
+  select(
+    SEQN, RIDSTATR, RIDAGEYR,
+    RIAGENDR, RIDRETH3, DMDEDUC2
+  )
+
+deq <- deq_raw %>%
+  select(
+    SEQN, DED120, DED125, DEQ034D
+  )
+
+# Merge datasets
+sun_raw <- demo %>%
+  left_join(deq, by = "SEQN")
+
+# Restrict to adults ages 20-59 who completed the examination
+sun <- sun_raw %>%
+  filter(
+    RIDSTATR == 2,
+    RIDAGEYR >= 20,
+    RIDAGEYR <= 59
+  )
+
+
+
+```
+
+# **Cleaning the Data**
+
+```{r}
+
+library(mice)
+
+#Clean the data by replace any invalid responses (7,7777,9,9999,3333)
+
+sun_clean <- sun %>%
+  mutate(
+    DMDEDUC2 = replace(
+      DMDEDUC2,
+      DMDEDUC2 %in% c(7, 9),
+      NA
+    ),
+    
+    DEQ034D = replace(
+      DEQ034D,
+      DEQ034D %in% c(7, 9),
+      NA
+    ),
+    
+    DED120 = replace(
+      DED120,
+      DED120 %in% c(3333, 7777, 9999),
+      NA
+    ),
+    
+    DED125 = replace(
+      DED125,
+      DED125 %in% c(3333, 7777, 9999),
+      NA
+    )
+  )
+
+#Create useful categories
+
+sun_clean <- sun_clean %>%
+  mutate(
+    gender = factor(
+      RIAGENDR,
+      levels = c(1, 2),
+      labels = c("Male", "Female")
+    ),
+    
+    race_ethnicity = factor(
+      RIDRETH3,
+      levels = c(1, 2, 3, 4, 6, 7),
+      labels = c(
+        "Mexican American",
+        "Other Hispanic",
+        "Non-Hispanic White",
+        "Non-Hispanic Black",
+        "Non-Hispanic Asian",
+        "Other Race - Including Multi-Racial"
+      )
+    ),
+    
+    education = case_when(
+      DMDEDUC2 %in% c(1, 2) ~ "Less than high school",
+      DMDEDUC2 == 3 ~ "High school or GED",
+      DMDEDUC2 == 4 ~ "Some college or AA",
+      DMDEDUC2 == 5 ~ "College graduate or above",
+      TRUE ~ NA_character_
+    ),
+    
+    education = factor(
+      education,
+      levels = c(
+        "Less than high school",
+        "High school or GED",
+        "Some college or AA",
+        "College graduate or above"
+      )
+    ),
+    
+    sunscreen = factor(
+      DEQ034D,
+      levels = c(1, 2, 3, 4, 5),
+      labels = c(
+        "Always",
+        "Most of the time",
+        "Sometimes",
+        "Rarely",
+        "Never"
+      )
+    ),
+    
+    regular_sunscreen = case_when(
+      DEQ034D %in% c(1, 2) ~ "Regular",
+      DEQ034D %in% c(3, 4, 5) ~ "Not Regular",
+      TRUE ~ NA_character_
+    ),
+    
+    regular_sunscreen = factor(
+      regular_sunscreen,
+      levels = c("Not Regular", "Regular")
+    )
+  )
+
+sun_clean <- sun_clean %>%
+  rename(
+    outdoor_workday = DED120,
+    outdoor_nonworkday = DED125
+  )
+
+study2 <- sun_clean %>%
+  select(
+    SEQN,
+    outdoor_workday,
+    education,
+    RIDAGEYR,
+    gender,
+    race_ethnicity,
+    regular_sunscreen
+  )
+
+#Check dimension
+dim(study2)
+
+#Summary and distinct variables check
+study2 %>%
+  summarize(
+    across(
+      everything(),
+      ~ sum(is.na(.))
+    )
+  ) %>%
+  kable()
+
+n_distinct(study2$outdoor_workday, na.rm = TRUE)
+
+study2 <- study2 %>%
+  filter(
+    !is.na(outdoor_workday),
+    !is.na(education)
+  )
+
+dim(study2)
+
+study2 %>%
+  summarize(
+    across(everything(), ~ sum(is.na(.)))
+  ) %>%
+  kable()
+
+study2_clean <- mice(
+  study2,
+  m = 1,
+  maxit = 5,
+  seed = 431,
+  printFlag = FALSE
+)
+
+study2_final <- complete(study2_clean)
+
+dim(study2_final)
+
+study2_final %>%
+  summarize(
+    across(everything(), ~ sum(is.na(.)))
+  ) %>%
+  pivot_longer(
+    everything(),
+    names_to = "Variable",
+    values_to = "Number Missing"
+  ) %>%
+  kable(
+    caption = "Missing Values After Data Cleaning"
+  )
+
+```
+
+# Codebook and Data Description
+
+## Codebook
+
+```{r}
+codebook <- tibble(
+  Variable = c(
+    "SEQN",
+    "outdoor_workday",
+    "education",
+    "RIDAGEYR",
+    "gender",
+    "race_ethnicity",
+    "regular_sunscreen"
+  ),
+  Description = c(
+    "Participant ID",
+    "Time spent outdoors on work/school days (minutes)",
+    "Highest education level",
+    "Age in years",
+    "Gender",
+    "Race/ethnicity",
+    "Regular sunscreen use"
+  ),
+  Role = c(
+    "ID",
+    "Outcome",
+    "Key predictor",
+    "Predictor",
+    "Predictor",
+    "Predictor",
+    "Predictor"
+  )
+)
+
+codebook %>%
+  kable(
+    caption = "Codebook for Study 2 Analytic Variables"
+  )
+```
+
+## Analytic Tibble
+
+```{r}
+#Tibble
+study2_final %>%
+  slice_head(n = 10) %>%
+  kable(
+    caption = "First 10 Observations of the Study 2 Analytic Dataset"
+  )
+```
+
+## Numeric Description
+
+```{r}
+#Data summary
+numeric_summary <- tibble(
+  Variable = c("Outdoor time (minutes)", "Age (years)"),
+  Mean = c(
+    mean(study2_final$outdoor_workday),
+    mean(study2_final$RIDAGEYR)
+  ),
+  SD = c(
+    sd(study2_final$outdoor_workday),
+    sd(study2_final$RIDAGEYR)
+  ),
+  Median = c(
+    median(study2_final$outdoor_workday),
+    median(study2_final$RIDAGEYR)
+  ),
+  Min = c(
+    min(study2_final$outdoor_workday),
+    min(study2_final$RIDAGEYR)
+  ),
+  Max = c(
+    max(study2_final$outdoor_workday),
+    max(study2_final$RIDAGEYR)
+  )
+)
+
+numeric_summary %>%
+  kable(
+    digits = 1,
+    caption = "Summary of Numeric Variables"
+  )
+```
+
+# My Research Question
+
+**How well does education level predict time spent outdoors on work/school days among adults ages 20–59 after accounting for age, gender, race/ethnicity, and regular sunscreen use?**
+
+Key predictor will be *education*. The quantitative outcome would be *outdoor_workday* (time spent outdoors on work/school days). Additional predictors are *age*, *gender*, *race/ ethnicity*, and *regular_sunscreen* (regular sunscreen use).
+
+# Partitioning the Data
+
+```{r}
+#Partition the data (train and test)
+set.seed(431)
+
+study2_train <- study2_final %>%
+  slice_sample(prop = 0.70)
+
+study2_test <- study2_final %>%
+  anti_join(study2_train, by = "SEQN")
+
+#Check size for 70/30
+nrow(study2_train)
+nrow(study2_test)
+
+#Verify that no one is in both training and test sets at the same time
+partition_check <- tibble(
+  Dataset = c("Full analytic sample", "Training", "Test"),
+  n = c(
+    nrow(study2_final),
+    nrow(study2_train),
+    nrow(study2_test)
+  )
+)
+
+partition_check %>%
+  kable(
+    caption = "Study 2 Training and Test Sample Sizes"
+  )
+
+# Check that no participant appears in both datasets
+intersect(
+  study2_train$SEQN,
+  study2_test$SEQN
+)
+
+```
+
+# Transforming the Outcome
+
+```{r}
+#Plot
+ggplot(study2_train, aes(x = outdoor_workday)) +
+  geom_histogram(bins = 30) +
+  labs(
+    title = "Distribution of Outdoor Time in Training Data",
+    x = "Time spent outdoors on work/school days (minutes)",
+    y = "Count"
+  )
+
+#Summary
+study2_train %>%
+  summarize(
+    mean = mean(outdoor_workday),
+    sd = sd(outdoor_workday),
+    median = median(outdoor_workday),
+    min = min(outdoor_workday),
+    max = max(outdoor_workday)
+  ) %>%
+  kable(digits = 1)
+
+#Log transformation is used because the data is skewed to the right, so linear transformation would not work. The log calculations will compress the big datapoints while the effect is minimal on small datapoints, so overall it should somewhat account for the dramatic skew. 
+
+#Log transformation
+study2_train <- study2_train %>%
+  mutate(
+    log_outdoor_workday = log(outdoor_workday + 1)
+  )
+
+study2_test <- study2_test %>%
+  mutate(
+    log_outdoor_workday = log(outdoor_workday + 1)
+  )
+
+#Plot the log distribution
+
+ggplot(study2_train, aes(x = log_outdoor_workday)) +
+  geom_histogram(bins = 30) +
+  labs(
+    title = "Distribution of Log-Transformed Outdoor Time",
+    x = "log(Outdoor time + 1)",
+    y = "Count"
+  ) 
+
+#This log calculation produces a large portion for 0 since log (0+1) = 0 for people that reported outdoor_workday = 0. Otherwise, the distribution for other time interval looks better, though the distribution is still not normal. The improvement is a sign to proceed with the model fitting.
+
+
+```
+
+# The Big Model 
+
+```{r}
+#The Big Model uses log transformation to predict the outdoor time on work/school days as the the outcome, including additional predictors such as education, age, gender, race/ethnicity, and regular sunscreen use. 
+
+#Big Model
+big_model <- lm(
+  log_outdoor_workday ~ education + RIDAGEYR + gender +
+    race_ethnicity + regular_sunscreen,
+  data = study2_train
+)
+
+# Coefficient summary
+tidy(big_model, conf.int = TRUE) %>%
+  kable(
+    digits = 3,
+    caption = "Coefficient Estimates for the Big Model"
+  )
+
+
+```
+
+# The Small Model 
+
+```{r}
+#Small Model uses the same log transformation to calculate the outdoor time on work/school days as the outcome, but it only uses education as the key predictor. 
+
+#Small Model
+small_model <- lm(
+  log_outdoor_workday ~ education,
+  data = study2_train
+)
+
+# Coefficient summary
+tidy(small_model, conf.int = TRUE) %>%
+  kable(
+    digits = 3,
+    caption = "Coefficient Estimates for the Smaller Model"
+  )
+```
+
+# In-Sample Comparison
+
+## Quality of Fit
+
+```{r}
+#Evaluation/Comparision of the two models using R squared, AIC, and BIC
+
+
+big_fit <- glance(big_model) %>%
+  select(r.squared, adj.r.squared, AIC, BIC) %>%
+  mutate(Model = "Big Model")
+
+small_fit <- glance(small_model) %>%
+  select(r.squared, adj.r.squared, AIC, BIC) %>%
+  mutate(Model = "Smaller Model")
+
+bind_rows(big_fit, small_fit) %>%
+  select(Model, everything()) %>%
+  kable(
+    digits = 3,
+    caption = "In-Sample Model Fit Comparison"
+  )
+
+```
+
+The R squared value is higher for the Big model, indicating that the model has a better fit compared to the Small model, though it only accounts for about 10% of the variation. Nonetheles, the AIC and BIC results for the Big model are smaller. Overall, so far, the Big model seems to be a stronger model.
+
+## Assessing Assumptions
+
+```{r}
+#Check Regression Assumptions using Residual and Normal Q-Q plots for the Big model and Small model 
+
+#Big Model
+big_aug <- augment(big_model)
+
+# Residuals vs Fitted
+ggplot(big_aug, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_smooth(
+    method = "lm",
+    se = FALSE
+  ) +
+  labs(
+    title = "Big Model: Residuals vs Fitted",
+    x = "Fitted values",
+    y = "Residuals"
+  )
+
+# Normal Q-Q plot
+ggplot(big_aug, aes(sample = .resid)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(
+    title = "Big Model: Normal Q-Q",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  )
+
+#Small Model
+small_aug <- augment(small_model)
+
+# Residuals vs Fitted
+ggplot(small_aug, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_smooth(
+    method = "loess",
+    se = FALSE
+  ) +
+  labs(
+    title = "Small Model: Residuals vs Fitted",
+    x = "Fitted values",
+    y = "Residuals"
+  )
+
+# Normal Q-Q plot
+ggplot(small_aug, aes(sample = .resid)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(
+    title = "Small Model: Normal Q-Q",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  )
+
+
+
+```
+
+## Comparing the Model
+
+The results are very different for the Big model and the Small model.
+
+The Big Model has higher R squared and adjusted R squared values, which means that it explains more of the variation in the outdoor time in the training data.
+
+It's very interesting how the Residuals for the Big model are somewhat in a diagonal position, and it does not agree with the fitted values. The values starting at around -2 seem somewhat out of the normal range. The Residuals for the Small model have substainable spread and do not align well with the fitted line. The regression residuals only partially follow the normal distribution, as showed in the Normal Q-Q plot in the Big model. The same observation can be made with the Small model: Normal Q-Q plot. While these results are not ideal, we should still proceed with the predictions to see if we could get a different result.
+
+# Model Validation
+
+## Calculating Prediction Errors
+
+```{r}
+# Big Model predictions on test data
+big_test <- study2_test %>%
+  mutate(
+    predicted_log = predict(big_model, newdata = study2_test),
+    predicted_minutes = exp(predicted_log) - 1,
+    prediction_error = outdoor_workday - predicted_minutes
+  )
+
+# Small Model predictions on original scale
+small_test <- study2_test %>%
+  mutate(
+    predicted_log = predict(small_model, newdata = study2_test),
+    predicted_minutes = exp(predicted_log) - 1,
+    prediction_error = outdoor_workday - predicted_minutes
+  )
+
+```
+
+## Visualizing the Predictions
+
+```{r}
+#Actual vs Predicted Plot
+
+prediction_plot <- bind_rows(
+  big_test %>%
+    select(outdoor_workday, predicted_minutes) %>%
+    mutate(Model = "Big Model"),
+  
+  small_test %>%
+    select(outdoor_workday, predicted_minutes) %>%
+    mutate(Model = "Small Model")
+)
+
+ggplot(
+  prediction_plot,
+  aes(x = outdoor_workday, y = predicted_minutes)
+) +
+  geom_point(alpha = 0.4) +
+  geom_abline(
+    intercept = 0,
+    slope = 1,
+    linetype = "dashed"
+  ) +
+  facet_wrap(~ Model) +
+  labs(
+    title = "Actual vs. Predicted Outdoor Time",
+    x = "Actual outdoor time (minutes)",
+    y = "Predicted outdoor time (minutes)"
+  )
+```
+
+## Summarizing the Errors
+
+```{r}
+
+# Big Model test performance
+big_validation <- big_test %>%
+  summarize(
+    RMSPE = sqrt(mean(prediction_error^2)),
+    MAPE = mean(abs(prediction_error)),
+    MAE = max(abs(prediction_error)),
+    validated_R2 = cor(outdoor_workday, predicted_minutes)^2
+  )
+
+# Small Model test performance
+small_validation <- small_test %>%
+  summarize(
+    RMSPE = sqrt(mean(prediction_error^2)),
+    MAPE = mean(abs(prediction_error)),
+    MAE = max(abs(prediction_error)),
+    validated_R2 = cor(outdoor_workday, predicted_minutes)^2
+  )
+
+#Clean table
+bind_rows(
+  Big_Model = big_validation,
+  Small_Model = small_validation,
+  .id = "Model"
+) %>%
+  
+  kable(
+    digits = 3,
+    caption = "Model Performance on the Test Data"
+  )
+
+
+```
+
+## Comparing the Models
+
+The Big Model has a lower RMSPE (157 minutes) and MAE (100 minutes) compared to the Small Model (165 and 104 minutes, respectively). The Big Model also has a higher R square value (0.138 vs 0.046), which means its predictions are closer to the actual outdoor time values. Overall, the Big Model shows better predictive performance, though the prediction errors are still significant in both models.
+
+# Discussion
+
+## Chosen Model
+
+I choose the Big Model because it shows better results on almost all of the validation tests, including higher R squared values, low AIC and BIC values, than the Small Model. In addition, its prediction errors (RMSPE and MAE) are also smaller than those for the Small Model. However, it still has significant limitations since the error values are relatively large.
+
+## Answering My Question
+
+While *education* as a predictor alone is proven inefficient to predict the *outdoor time* on work/school days, adding multiple predictors seem to only improve the outcome to a certain extent. We can see that the predicted outdoor time has much variations with the Big Model.
+
+Looking at the coefficient tables of the Big Model, *education* is related to *outdoor time* mainly for college graduates. Participants with high school and some college education do not have a statistically significant difference in otudoor time compared to those with less than high school education. However, college graduates and above tend to spend less time outdoors than those with less than a high school education. This is a significant difference (p\<0.001), taking into account for *age, gender, race, and regular sunscreen use*.
+
+## Next Steps
+
+I think the next steps should be looking at other predictors such as occupation or work schedule. In addition, other regression models could be explored since the log transformation did not fully account for the large prediction errors at the end.
+
+## Reflection
+
+It's important to evaluate a model using both the training and testing data. We see that even though the Big Model surpasses the Small Model on most measurements (R squared, AIC, BIC results, etc.), the plots tell us that the improved performance of the Big Model still has significant variations from the actual values. Thus, adding more predictors might actually have complicated the performance of the model, even after showing some initial potential.
+
+## Final Section
+
+```{r}
+xfun::session_info()
+```

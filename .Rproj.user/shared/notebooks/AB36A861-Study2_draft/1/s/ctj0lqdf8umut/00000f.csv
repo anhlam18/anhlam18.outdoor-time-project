@@ -1,0 +1,11 @@
+"0","#Big model and Small model correspond to the two competitive models in part 11. So Big model is the ""full model"" with all candidate predictors included, while Small model is the ""well-motivated subset"" of the full model. "
+"0",""
+"0","#Big Model"
+"0","big_model <- lm("
+"0","  log_outdoor_workday ~ education + RIDAGEYR + gender +"
+"0","    race_ethnicity + regular_sunscreen,"
+"0","  data = study2_train"
+"0",")"
+"2","Error in eval(predvars, data, env) : 
+  object 'log_outdoor_workday' not found
+"

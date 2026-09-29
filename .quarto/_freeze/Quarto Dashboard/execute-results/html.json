@@ -1,0 +1,17 @@
+{
+  "hash": "e92afb03d40be4ff91ce6867871a14d8",
+  "result": {
+    "engine": "knitr",
+    "markdown": "---\ntitle: \"Outdoor Time and Sun Protection Dashboard\"\nauthor: \"Anh Lam\"\nformat:\n  dashboard:\n    orientation: rows\n    scrolling: true\nengine: knitr\n---\n\n\n\n# Overview\n\n## Row\n\n<p style=\"font-size: 40px;\">\n\nThis dashboard explores outdoor time and sun protection behaviors among adults ages 20–59 using NHANES data.\n\n</p>\n\n## Row {height=\"20%\"}\n\n### Participants\n\n\n::: {.cell content='valuebox'}\n::: {.cell-output .cell-output-stdout}\n\n```\n$title\n[1] \"Participants\"\n\n$value\n[1] \"4,867\"\n\n$subtitle\n[1] \"Adults ages 20–59\"\n\n$icon\n[1] \"people\"\n```\n\n\n:::\n:::\n\n\n### Median Outdoor Time\n\n\n::: {.cell content='valuebox'}\n::: {.cell-output .cell-output-stdout}\n\n```\n$title\n[1] \"Median Outdoor Time\"\n\n$value\n[1] \"60 min\"\n\n$subtitle\n[1] \"On a work or school day\"\n\n$icon\n[1] \"clock\"\n```\n\n\n:::\n:::\n\n\n### Regular Sunscreen Use\n\n\n::: {.cell content='valuebox'}\n::: {.cell-output .cell-output-stdout}\n\n```\n$title\n[1] \"Regular Sunscreen Users\"\n\n$value\n[1] \"20.4%\"\n\n$subtitle\n[1] \"Use sunscreen always or most of the time\"\n\n$icon\n[1] \"sun\"\n```\n\n\n:::\n:::\n\n\n## Row {height=\"55%\"}\n\n### Outdoor Time by Education\n\n\n::: {.cell}\n::: {.cell-output-display}\n![](Quarto-Dashboard_files/figure-html/unnamed-chunk-5-1.png){width=768}\n:::\n:::\n\n\n# Sunscreen Use\n\n## Row {heigh=\"60%\"}\n\n### Regular Sunscreen Use by Gender\n\n\n::: {.cell}\n::: {.cell-output-display}\n![](Quarto-Dashboard_files/figure-html/unnamed-chunk-6-1.png){width=528}\n:::\n:::\n\n\n### Sunscreen Use Summary\n\n\n::: {.cell}\n::: {.cell-output-display}\n\n\n|Gender |Regular Sunscreen Use |\n|:------|:---------------------|\n|Male   |11.3%                 |\n|Female |29%                   |\n\n\n:::\n:::\n\n\n# Predicting\n\n## Row {height=\"45%\"}\n\n### Model Performance\n\n\n::: {.cell}\n::: {.cell-output-display}\n\n\nTable: Test Data Performance\n\n|Model       |  RMSPE|    MAE| Validated R²|\n|:-----------|------:|------:|------------:|\n|Big Model   | 157.15| 100.46|         0.14|\n|Small Model | 165.53| 104.73|         0.05|\n\n\n:::\n:::\n\n\n### Key Finding\n\nThe Big Model had lower prediction error and a higher $R^2$ than the Smaller Model. However, both models had significant prediction errors, which suggests that education and the demographic and sunscreen variables explain only a limited amount of variation in outdoor time.\n\n# About the Data\n\n## Row {height=\"50%\"}\n\n### Data\n\nThis dashboard uses data from the **NHANES 2017–March 2020 Pre-Pandemic cycle**. The analysis focuses on adults ages 20–59 who completed the examination.\n\nThe dashboard examines outdoor time on work or school days, education level, gender, and regular sunscreen use.\n\n### Variables\n\n**Outdoor Time:** Minutes spent outdoors on a typical work or school day.\n\n**Education:** Less than high school, High school/GED, Some college/AA, or College graduate or above.\n\n**Gender:** Male or Female.\n\n**Regular Sunscreen Use:** Participants who reported using sunscreen always or most of the time were classified as regular sunscreen users.\n\n```{=html}\n<style>\n.navbar-title {\n  font-size: 28px !important;\n}\n</style>\n```\n",
+    "supporting": [
+      "Quarto-Dashboard_files"
+    ],
+    "filters": [
+      "rmarkdown/pagebreak.lua"
+    ],
+    "includes": {},
+    "engineDependencies": {},
+    "preserve": {},
+    "postProcess": true
+  }
+}

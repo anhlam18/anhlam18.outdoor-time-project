@@ -1,0 +1,4 @@
+"0",""
+"0","#This log calculation produces a large portion for 0 since log (0+1) = 0 for people that reported outdoor_workday = 0. Otherwise, the distribution for other time interval looks better, though the distribution is still not normal. The improvement is a sign to proceed with the model fitting."
+"0",""
+"0",""

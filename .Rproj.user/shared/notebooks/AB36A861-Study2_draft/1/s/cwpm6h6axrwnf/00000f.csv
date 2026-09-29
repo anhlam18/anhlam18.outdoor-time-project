@@ -1,0 +1,6 @@
+"0","#Evaluation or Comparision of the two models using R squared, AIC, and BIC"
+"0",""
+"0","#Big Model "
+"0","glance(big_model) %>%"
+"0","  select(r.squared, adj.r.squared, AIC, BIC) %>%"
+"0","  kable(digits = 3)"

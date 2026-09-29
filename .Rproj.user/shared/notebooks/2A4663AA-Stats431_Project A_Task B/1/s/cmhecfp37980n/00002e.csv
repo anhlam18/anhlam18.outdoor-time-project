@@ -1,0 +1,5 @@
+"0",""
+"0","study1 %>%"
+"0","  tabyl(regular_sunscreen) %>%"
+"0","  adorn_pct_formatting(digits = 1) %>%"
+"0","  kable()"

@@ -1,0 +1,8 @@
+"0",""
+"0","# Check that no participant appears in both datasets"
+"0","intersect("
+"0","  study2_train$SEQN,"
+"0","  study2_test$SEQN"
+"0",")"
+"1","numeric(0)
+"

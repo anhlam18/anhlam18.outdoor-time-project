@@ -1,0 +1,7 @@
+"0",""
+"0","#Linear model comparing mean outdoor time across education levels"
+"0","education_model <- lm(outdoor_workday ~ education, data = study1)"
+"0",""
+"0","tidy(education_model, conf.int = TRUE, conf.level = 0.90) %>%"
+"0","  select(term, estimate, conf.low, conf.high) %>%"
+"0","  kable(digits = 1)"
