@@ -1,6 +1,8 @@
 ---
 title: "Outdoor Time and Sun Protection Dashboard"
-author: "Anh Lam"
+author: 
+  name:"Anh Lam"
+  url: "https://anhlam18.github.io"
 format:
   dashboard:
     orientation: rows
@@ -162,7 +164,7 @@ ggplot(
 
 # Sunscreen Use
 
-## Row {heigh="60%"}
+## Row {height="60%"}
 
 ### Regular Sunscreen Use by Gender
 
