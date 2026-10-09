@@ -1,8 +1,6 @@
 ---
 title: "Outdoor Time and Sun Protection Dashboard"
-author: 
-  name:"Anh Lam"
-  url: "https://anhlam18.github.io"
+author: "[Anh Lam](https://anhlam18.github.io)"
 format:
   dashboard:
     orientation: rows
